@@ -1,0 +1,428 @@
+# yaml-language-server: $schema=https://json-schema.org/draft/2020-12/schema
+openapi: 3.0.3
+info:
+  title: Game HTTP API
+  version: "1.0"
+  license:
+    name: "Apache 2.0"
+    url: "https://www.apache.org/licenses/LICENSE-2.0"
+
+servers:
+  - url: http://127.0.0.1:8080
+
+components:
+  requestBodies:
+    CreateUserRequestBody:
+      description: "Create user request body"
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - telegramId
+              - name
+            properties:
+              telegramId:
+                type: integer
+              name:
+                type: string
+
+    AuthViaTelegram:
+      description: Telegram authentication request body
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - initData
+            properties:
+              initData:
+                type: string
+
+  securitySchemes:
+    JWTBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+    TelegramAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        Telegram InitData authorization.
+        Header format:
+        `Authorization: Telegram {initData}`
+
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - name
+        - telegramId
+        - createdAt
+
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        telegramId:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+
+    Player:
+      type: object
+      required:
+        - id
+        - user_id
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+
+    InventoryItem:
+      type: object
+      required:
+        - itemId
+        - quantity
+      properties:
+        itemId:
+          type: integer
+        quantity:
+          type: integer
+
+    GameItem:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - metadata
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        metadata:
+          type: array
+
+  responses:
+    CreateUserResponse:
+      description: "Successfully created user"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/User"
+
+    GetUserByIdResponse:
+      description: "Successfully retrieved user"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/User"
+
+    GetUserInventoryResponse:
+      description: "Successfully retrieved user inventory"
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - userId
+              - items
+            properties:
+              userId:
+                type: integer
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryItem"
+
+    GetGameResourcesDump:
+      description: "Dump game resources"
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - gameItems
+            properties:
+              gameItems:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameItem"
+
+    GetGameItemsResponse:
+      description: Successfully retrieved game items
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/GameItem"
+
+    InventoryNotFoundResponse:
+      description: "Cannot find player inventory"
+      content:
+        application/json:
+          schema:
+            required:
+              - error
+            type: object
+            properties:
+              error:
+                type: string
+
+    CreateGameItemResponse:
+      description: Successfully created game item
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/GameItem"
+
+    GetPlayerResponse:
+      description: Successfully retireved user
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - player
+              - user
+            properties:
+              player:
+                $ref: "#/components/schemas/Player"
+              user:
+                $ref: "#/components/schemas/User"
+
+    UnauthorizedResponse:
+      description: "Unauthorized"
+      content:
+        application/json:
+          schema:
+            required:
+              - error
+            type: object
+            properties:
+              error:
+                type: string
+
+    DefaultErrorResponse:
+      description: Error
+      content:
+        application/json:
+          schema:
+            required:
+              - message
+            type: object
+            properties:
+              message:
+                type: string
+
+    AuthenticationResult:
+      description: Successfully authenticated
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - access
+              - refresh
+            properties:
+              access:
+                type: string
+              refresh:
+                type: string
+
+paths:
+  /users:
+    post:
+      security:
+        - JWTBearer:
+            - admin:read
+      operationId: create_user
+      summary: Create user
+      description: Create user
+      tags:
+        - Users
+        - Admin
+      requestBody:
+        $ref: "#/components/requestBodies/CreateUserRequestBody"
+      responses:
+        200:
+          $ref: "#/components/responses/CreateUserResponse"
+        403:
+          $ref: "#/components/responses/UnauthorizedResponse"
+
+  /users/{user_id}:
+    get:
+      security:
+        - JWTBearer:
+            - admin:read
+      operationId: get_user_by_id
+      summary: "Get user by id"
+      description: "Get user by id"
+      parameters:
+        - in: path
+          name: user_id
+          schema:
+            type: integer
+          required: true
+      tags:
+        - Users
+        - Admin
+
+      responses:
+        200:
+          $ref: "#/components/responses/GetUserByIdResponse"
+        400:
+          $ref: "#/components/responses/DefaultErrorResponse"
+        403:
+          $ref: "#/components/responses/UnauthorizedResponse"
+
+  /auth/telegram:
+    post:
+      operationId: auth_via_telegram
+      summary: Authenticate via telegram
+      description: Authentication with Telegram InitData
+      security: []
+      tags:
+        - Authentication
+      responses:
+        200:
+          $ref: "#/components/responses/AuthenticationResult"
+        400:
+          $ref: "#/components/responses/DefaultErrorResponse"
+
+  /auth/refresh:
+    post:
+      operationId: refresh_jwt_token
+      description: Refresh JWT token
+      summary: Refresh JWT token
+      security:
+        - JWTBearer:
+            - game:player
+      tags:
+        - Authentication
+      requestBody:
+        $ref: "#/components/requestBodies/AuthViaTelegram"
+      responses:
+        200:
+          $ref: "#/components/responses/AuthenticationResult"
+        400:
+          $ref: "#/components/responses/DefaultErrorResponse"
+        403:
+          $ref: "#/components/responses/UnauthorizedResponse"
+
+  /game/inventory/{player_id}:
+    get:
+      parameters:
+        - name: player_id
+          in: path
+          schema:
+            type: string
+          required: true
+
+      security:
+        - JWTBearer:
+            - game:player
+      operationId: get_player_inventory
+      summary: Get player inventory
+      responses:
+        200:
+          $ref: "#/components/responses/GetUserInventoryResponse"
+        403:
+          $ref: "#/components/responses/UnauthorizedResponse"
+        404:
+          $ref: "#/components/responses/InventoryNotFoundResponse"
+
+  /game/inventory/me:
+    get:
+      operationId: get_my_inventory
+      summary: Get my inventory
+      security:
+        - JWTBearer:
+            - game:player
+
+      responses:
+        200:
+          $ref: "#/components/responses/GetUserInventoryResponse"
+        403:
+          $ref: "#/components/responses/UnauthorizedResponse"
+
+  /game/resources/dump:
+    get:
+      operationId: dump_game_resources
+      summary: Get game resources
+      security:
+        - JWTBearer:
+            - admin:read
+
+      responses:
+        200:
+          $ref: "#/components/responses/GetGameResourcesDump"
+        403:
+          $ref: "#/components/responses/UnauthorizedResponse"
+
+  /game/resources/game_items:
+    post:
+      operationId: create_game_item
+      summary: Create game item
+      security:
+        - JWTBearer:
+            - admin:write
+      responses:
+        200:
+          $ref: "#/components/responses/CreateGameItemResponse"
+        403:
+          $ref: "#/components/responses/UnauthorizedResponse"
+        400:
+          $ref: "#/components/responses/DefaultErrorResponse"
+
+    get:
+      operationId: get_game_items
+      summary: Get game items
+      security:
+        - JWTBearer:
+            - game:user
+            - admin:read
+      responses:
+        200:
+          $ref: "#/components/responses/GetGameItemsResponse"
+        403:
+          $ref: "#/components/responses/UnauthorizedResponse"
+
+  /game/players:
+    get:
+      parameters:
+        - name: by
+          in: query
+          schema:
+            default: "userID"
+            type: string
+            enum: ["telegramId", "userId"]
+      security:
+        - JWTBearer:
+            - game:user
+      tags:
+        - Game
+        - Players
+      summary: Get player info
+      operationId: get_player
+      responses:
+        200:
+          $ref: "#/components/responses/GetPlayerResponse"
+        403:
+          $ref: "#/components/responses/UnauthorizedResponse"
+        404:
+          $ref: "#/components/responses/DefaultErrorResponse"

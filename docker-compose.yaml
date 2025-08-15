@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres_container
+    ports:
+      - 5430:5432
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DATABASE}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data/pgdata
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+
+  http_server:
+    build: 
+      context: .
+      dockerfile: cmd/http_server/Dockerfile
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: ${POSTGRES_DATABASE}
+      POSTGRES_SSL: ${POSTGRES_SSL}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN} 
+      HOST: "0.0.0.0"
+      PORT: 8080
+    ports:
+      - ${HTTP_SERVER_PORT}:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
